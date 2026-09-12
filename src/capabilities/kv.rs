@@ -1,5 +1,5 @@
-//! Durable namespaced state for Lua.
+//! Durable namespaced state.
 //!
 //! This capability hides SQLite behind a small transactional key-value model so
-//! scripts own their schemas without owning connection, concurrency, or storage
-//! correctness.
+//! consumers own their schemas without owning connection, concurrency, or
+//! storage correctness.

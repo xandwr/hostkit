@@ -1,8 +1,8 @@
-//! Tau's native host library.
+//! Pure Rust foundation for Tau's native capability service.
 //!
-//! Rust owns dependable system mechanisms while Lua owns agent policy. This
-//! crate keeps that boundary narrow by routing capability modules through the
-//! runtime that makes asynchronous native work feel natural to Lua code.
+//! The crate owns dependable system mechanisms and routes them through a
+//! language-neutral runtime boundary. Client runtimes and product policy remain
+//! separate consumers of the same native contract.
 
 pub mod capabilities;
 pub mod runtime;

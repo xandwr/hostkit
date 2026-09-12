@@ -1,9 +1,10 @@
-//! The execution boundary between Tokio, native capabilities, and Lua.
+//! The execution boundary between clients and native capabilities.
 //!
-//! The runtime coordinates VM ownership, tasks, cancellation, and error mapping
-//! so asynchronous Rust operations behave like straightforward Lua calls.
+//! The runtime coordinates request contexts, routing, tasks, cancellation,
+//! resource ownership, and error mapping without adopting client-specific
+//! semantics.
 
 pub mod cancellation;
 pub mod error;
-pub mod lua;
+pub mod router;
 pub mod task;

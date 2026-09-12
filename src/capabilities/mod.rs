@@ -1,8 +1,8 @@
-//! Native capabilities made available to Lua.
+//! Native capabilities exposed through the shared runtime boundary.
 //!
 //! Each module owns one small, testable system boundary. The runtime grants
-//! scoped access and presents their results through one consistent Lua-facing
-//! error, cancellation, and scheduling model.
+//! scoped access and presents results through one consistent error, cancellation,
+//! and resource ownership model.
 
 pub mod ast;
 pub mod fs;

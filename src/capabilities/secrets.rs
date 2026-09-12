@@ -1,4 +1,4 @@
-//! Controlled secret access for Lua.
+//! Controlled secret access.
 //!
 //! This capability supplies credentials without treating them as ordinary
 //! configuration data, allowing other native capabilities to consume secrets

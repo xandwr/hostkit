@@ -1,5 +1,4 @@
-//! Scheduling between Lua coroutines and Tokio tasks.
+//! Native asynchronous task ownership and scheduling.
 //!
-//! This module suspends Lua while native futures are pending, resumes it with a
-//! value or structured error, and preserves cancellation and task ownership
-//! throughout the round trip.
+//! This module tracks work started by a request context and preserves cancellation,
+//! cleanup, and structured results throughout each operation's lifetime.

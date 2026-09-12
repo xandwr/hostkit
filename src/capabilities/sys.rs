@@ -1,5 +1,5 @@
-//! Cross-platform process execution for Lua.
+//! Cross-platform process execution.
 //!
 //! This capability owns argv-safe spawning, standard streams, timeouts, process
-//! trees, and cancellation so Lua tools can run commands without platform-specific
-//! lifecycle code.
+//! trees, and cancellation so consumers do not need platform-specific lifecycle
+//! code.
