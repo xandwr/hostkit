@@ -41,3 +41,10 @@ requirements are implemented and tested.
 the binary is deterministic, cross-platform, independently testable,
 and free from runtime native-library discovery.
 required native assets, including the supported Tree-sitter grammars, are compiled into it.
+
+## Development
+
+incremental compilation is disabled for development and test profiles because
+current Rust toolchains cannot finalize incremental sessions reliably on Windows
+ReFS volumes. remove the workaround after
+[rust-lang/rust#151181](https://github.com/rust-lang/rust/issues/151181) is resolved.
