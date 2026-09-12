@@ -11,6 +11,8 @@ use std::fmt;
 pub enum ErrorCode {
     /// The owning request was cancelled before the operation completed.
     Cancelled,
+    /// The requested capability was not granted to this router.
+    CapabilityDenied,
     /// An owned task stopped without producing a capability result.
     TaskFailed,
 }
@@ -28,6 +30,14 @@ impl RuntimeError {
         Self {
             code: ErrorCode::Cancelled,
             message: "request cancelled".to_owned(),
+        }
+    }
+
+    /// Creates an error for a capability that is not granted.
+    pub fn capability_denied() -> Self {
+        Self {
+            code: ErrorCode::CapabilityDenied,
+            message: "capability not granted".to_owned(),
         }
     }
 
