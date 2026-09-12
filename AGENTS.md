@@ -2,6 +2,17 @@
 
 Read `README.md` before making architectural changes.
 
+## Git workflow
+
+- Keep `main` as the canonical integration branch.
+- Create a `feat/<slug>` branch for new functionality.
+- Create a `change/<slug>` branch for intentional changes to existing behavior or contracts.
+- Create a `fix/<slug>` branch for corrections to unintended behavior.
+- Validate feature, change, and fix branches, then squash-merge them into `main` with a matching `feat:`, `change:`, or `fix:` commit subject.
+- Nonfunctional cleanup and organization may be committed directly to `main` with a `chore:` subject.
+- Do not mix functional changes into a chore. When classification is uncertain, use a `change/<slug>` branch.
+- Delete a topic branch after it is merged.
+
 - Keep the Rust core independent of every client language and runtime.
 - Do not add embedded language runtimes or client-specific types, errors, or scheduling semantics.
 - Keep provider, agent, prompt, tool, session, extension, and interface policy outside this repository.
