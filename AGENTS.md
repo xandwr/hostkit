@@ -12,4 +12,5 @@ Read `README.md` before making architectural changes.
 - Treat Windows, Linux, and macOS behavior as one supported contract.
 - Keep capability modules isolated and independently testable.
 - Do not design speculative APIs. Add contracts alongside the implementation and tests that require them.
+- Use `.scratch/` for disposable fixtures, experiments, generated artifacts, and local test state. Its contents are ignored and must never become an implementation dependency.
 - Run `cargo fmt --check`, `cargo check`, `cargo test`, and `cargo doc --no-deps` after changes.
