@@ -1,6 +1,6 @@
-# tau-core
+# Hostkit
 
-`tau-core` is the pure Rust foundation for a standalone native capability
+`hostkit` is the pure Rust foundation for a standalone native capability
 service. It owns reliable system mechanisms and exposes them through a
 language-neutral boundary.
 

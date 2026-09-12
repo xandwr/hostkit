@@ -1,4 +1,4 @@
-# tau-core Development Rules
+# Hostkit Development Rules
 
 Read `README.md` before making architectural changes.
 

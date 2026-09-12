@@ -1,4 +1,4 @@
-//! Pure Rust foundation for Tau's native capability service.
+//! Pure Rust foundation for Hostkit's native capability service.
 //!
 //! The crate owns dependable system mechanisms and routes them through a
 //! language-neutral runtime boundary. Client runtimes and product policy remain
