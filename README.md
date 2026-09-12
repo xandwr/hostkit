@@ -8,7 +8,11 @@ reference clients and third-party consumers use the same API.
 
 ## Potential use cases:
 
-- LLM agent infrastructure
+- Sandboxed capability hosting for desktop application plugins.
+- Cross-platform build, test, and automation workers.
+- Native sidecars for applications written in managed or scripting languages.
+- Secure execution daemons for cancellable, resource-contained jobs.
+- LLM agent infrastructure.
 
 ## Scope:
 
@@ -36,4 +40,4 @@ requirements are implemented and tested.
 
 the binary is deterministic, cross-platform, independently testable,
 and free from runtime native-library discovery.
-required native assets, including the supported Tree-sitter grammars, are be compiled into it.
+required native assets, including the supported Tree-sitter grammars, are compiled into it.
