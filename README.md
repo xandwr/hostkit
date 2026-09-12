@@ -6,11 +6,11 @@ it owns reliable system mechanisms and exposes them through a language-neutral b
 core doesn't embed, depend on, or optimize for a client language.
 reference clients and third-party consumers use the same API.
 
-## Use cases
+## Potential use cases:
 
 - LLM agent infrastructure
 
-## Scope
+## Scope:
 
 - `net`: pooled buffered and streaming network transport.
 - `sys`: cross-platform process execution and lifecycle management.
@@ -24,7 +24,7 @@ Rust owns mechanism, resource safety, and platform behavior.
 provider payloads, agent behavior, prompts, tools, sessions, extensions,
 and other bullshit belong outside the core.
 
-## Boundary
+## Boundaries:
 
 every consumer receives the same capability contract.
 client-specific values, exceptions, schedulers, and assumptions can not leak
