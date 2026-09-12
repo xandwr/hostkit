@@ -21,6 +21,9 @@ pub type RouteFuture<Response> =
 /// Handles one request for a granted capability.
 pub trait RouteHandler<Request, Response>: Send + Sync + 'static {
     /// Starts the capability operation associated with `request`.
+    ///
+    /// After cancellation is signalled, the returned future must release its
+    /// resources and resolve. Request cancellation waits for that cleanup.
     fn handle(&self, cancellation: CancellationToken, request: Request) -> RouteFuture<Response>;
 }
 
@@ -98,9 +101,7 @@ where
             .get(key)
             .cloned()
             .ok_or_else(RuntimeError::capability_denied)?;
-        let cancellation = context.cancellation();
-
-        context.spawn(async move { handler.handle(cancellation, request).await })
+        context.spawn_cooperative(move |cancellation| handler.handle(cancellation, request))
     }
 }
 
@@ -117,12 +118,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::future::pending;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
 
-    use tokio::sync::{Notify, oneshot};
+    use tokio::sync::Notify;
     use tokio::time::timeout;
 
     use super::*;
@@ -198,34 +198,49 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn request_cancellation_reaches_handler_and_result_boundary() {
-        let (token_sender, token_receiver) = oneshot::channel();
-        let token_sender = Arc::new(std::sync::Mutex::new(Some(token_sender)));
+    async fn request_cancellation_waits_for_handler_cleanup() {
+        let started = Arc::new(Notify::new());
+        let cleanup_started = Arc::new(Notify::new());
+        let finish_cleanup = Arc::new(Notify::new());
+        let handler_started = Arc::clone(&started);
+        let handler_cleanup_started = Arc::clone(&cleanup_started);
+        let handler_finish_cleanup = Arc::clone(&finish_cleanup);
         let mut router = Router::<Capability, (), ()>::new();
         router.grant(
             Capability::Wait,
             move |cancellation: CancellationToken, ()| {
-                let token_sender = Arc::clone(&token_sender);
+                let started = Arc::clone(&handler_started);
+                let cleanup_started = Arc::clone(&handler_cleanup_started);
+                let finish_cleanup = Arc::clone(&handler_finish_cleanup);
                 async move {
-                    if let Some(sender) = token_sender.lock().unwrap().take() {
-                        sender.send(cancellation).unwrap();
-                    }
-                    pending::<RuntimeResult<()>>().await
+                    started.notify_one();
+                    cancellation.cancelled().await;
+                    cleanup_started.notify_one();
+                    finish_cleanup.notified().await;
+                    Ok(())
                 }
             },
         );
-        let context = RequestContext::new();
+        let context = Arc::new(RequestContext::new());
         let task = router.dispatch(&context, &Capability::Wait, ()).unwrap();
-        let handler_token = timeout(Duration::from_secs(1), token_receiver)
+        timeout(Duration::from_secs(1), started.notified())
             .await
-            .expect("handler did not receive cancellation token")
-            .expect("handler stopped before sending cancellation token");
+            .expect("handler did not start");
+        let cancelling_context = Arc::clone(&context);
+        let cancellation = tokio::spawn(async move { cancelling_context.cancel().await });
 
-        timeout(Duration::from_secs(1), context.cancel())
+        timeout(Duration::from_secs(1), cleanup_started.notified())
             .await
-            .expect("request cancellation did not finish");
+            .expect("handler did not begin cancellation cleanup");
+        assert!(!cancellation.is_finished());
+        assert_eq!(context.task_count(), 1);
 
-        assert!(handler_token.is_cancelled());
+        finish_cleanup.notify_one();
+        timeout(Duration::from_secs(1), cancellation)
+            .await
+            .expect("request cancellation did not finish after cleanup")
+            .expect("request cancellation task failed");
+
         assert_eq!(task.await.unwrap_err().code(), ErrorCode::Cancelled);
         assert_eq!(context.task_count(), 0);
     }

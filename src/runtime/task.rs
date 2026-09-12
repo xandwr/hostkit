@@ -13,7 +13,7 @@ use tokio::sync::{Notify, oneshot};
 use tokio::task::{AbortHandle, JoinError, JoinHandle};
 
 use super::cancellation::CancellationToken;
-use super::error::{RuntimeError, RuntimeResult};
+use super::error::{ErrorCode, RuntimeError, RuntimeResult};
 
 type TaskId = u64;
 
@@ -49,6 +49,48 @@ impl RequestContext {
         F: Future<Output = RuntimeResult<T>> + Send + 'static,
         T: Send + 'static,
     {
+        let task_cancellation = self.inner.cancellation.clone();
+        self.spawn_registered(async move {
+            tokio::select! {
+                biased;
+                _ = task_cancellation.cancelled() => Err(RuntimeError::cancelled()),
+                result = future => result,
+            }
+        })
+    }
+
+    pub(crate) fn spawn_cooperative<Factory, TaskFuture, T>(
+        &self,
+        factory: Factory,
+    ) -> RuntimeResult<OwnedTask<T>>
+    where
+        Factory: FnOnce(CancellationToken) -> TaskFuture + Send + 'static,
+        TaskFuture: Future<Output = RuntimeResult<T>> + Send + 'static,
+        T: Send + 'static,
+    {
+        let task_cancellation = self.inner.cancellation.clone();
+        self.spawn_registered(async move {
+            let future = factory(task_cancellation.clone());
+            tokio::pin!(future);
+
+            tokio::select! {
+                biased;
+                _ = task_cancellation.cancelled() => {
+                    match future.await {
+                        Err(error) if error.code() != ErrorCode::Cancelled => Err(error),
+                        _ => Err(RuntimeError::cancelled()),
+                    }
+                }
+                result = &mut future => result,
+            }
+        })
+    }
+
+    fn spawn_registered<F, T>(&self, future: F) -> RuntimeResult<OwnedTask<T>>
+    where
+        F: Future<Output = RuntimeResult<T>> + Send + 'static,
+        T: Send + 'static,
+    {
         let mut state = self.inner.state();
         if !state.accepting_tasks {
             return Err(RuntimeError::cancelled());
@@ -61,7 +103,6 @@ impl RequestContext {
             .expect("request task identifier exhausted");
 
         let cancellation = self.inner.cancellation.clone();
-        let task_cancellation = cancellation.clone();
         let context = Arc::downgrade(&self.inner);
         let (start_sender, start_receiver) = oneshot::channel();
         let handle = tokio::spawn(async move {
@@ -70,11 +111,7 @@ impl RequestContext {
             }
 
             let _registration = TaskRegistration { context, task_id };
-            tokio::select! {
-                biased;
-                _ = task_cancellation.cancelled() => Err(RuntimeError::cancelled()),
-                result = future => result,
-            }
+            future.await
         });
 
         state.tasks.insert(task_id, handle.abort_handle());
@@ -88,6 +125,9 @@ impl RequestContext {
     }
 
     /// Cancels the request and waits until every owned task has stopped.
+    ///
+    /// Router-dispatched handlers are allowed to finish resource cleanup before
+    /// stopping, so this remains pending until each cooperative handler resolves.
     pub async fn cancel(&self) {
         {
             let mut state = self.inner.state();
@@ -194,10 +234,12 @@ impl Drop for TaskRegistration {
 }
 
 fn map_join_error(error: JoinError, request_cancelled: bool) -> RuntimeError {
-    if request_cancelled || error.is_cancelled() {
+    if error.is_panic() {
+        RuntimeError::task_failed("owned task panicked")
+    } else if request_cancelled || error.is_cancelled() {
         RuntimeError::cancelled()
     } else {
-        RuntimeError::task_failed("owned task panicked")
+        RuntimeError::task_failed("owned task stopped without a result")
     }
 }
 
@@ -278,6 +320,85 @@ mod tests {
 
         let error = task.await.unwrap_err();
 
+        assert_eq!(error.code(), ErrorCode::TaskFailed);
+        assert_eq!(error.message(), "owned task panicked");
+        assert_eq!(context.task_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn cooperative_cancellation_preserves_cleanup_failure() {
+        let context = Arc::new(RequestContext::new());
+        let (started_sender, started_receiver) = oneshot::channel();
+        let task = context
+            .spawn_cooperative(move |cancellation| async move {
+                let _ = started_sender.send(());
+                cancellation.cancelled().await;
+                Err::<(), _>(RuntimeError::task_failed("cleanup failed"))
+            })
+            .unwrap();
+        started_receiver.await.unwrap();
+        let cancelling_context = Arc::clone(&context);
+
+        timeout(
+            Duration::from_secs(1),
+            tokio::spawn(async move { cancelling_context.cancel().await }),
+        )
+        .await
+        .expect("request cancellation did not finish")
+        .expect("request cancellation task failed");
+
+        let error = task.await.unwrap_err();
+        assert_eq!(error.code(), ErrorCode::TaskFailed);
+        assert_eq!(error.message(), "cleanup failed");
+        assert_eq!(context.task_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn dropping_context_hard_aborts_uncooperative_task() {
+        let context = RequestContext::new();
+        let (started_sender, started_receiver) = oneshot::channel();
+        let (dropped_sender, dropped_receiver) = mpsc::channel();
+        let task = context
+            .spawn_cooperative(move |_| async move {
+                let _drop_probe = DropProbe(dropped_sender);
+                let _ = started_sender.send(());
+                pending::<RuntimeResult<()>>().await
+            })
+            .unwrap();
+        started_receiver.await.unwrap();
+
+        drop(context);
+
+        let error = timeout(Duration::from_secs(1), task)
+            .await
+            .expect("uncooperative task was not aborted")
+            .unwrap_err();
+        dropped_receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("uncooperative task future was not dropped");
+        assert_eq!(error.code(), ErrorCode::Cancelled);
+    }
+
+    #[tokio::test]
+    async fn panic_during_cooperative_cleanup_is_not_hidden_by_cancellation() {
+        let context = RequestContext::new();
+        let (started_sender, started_receiver) = oneshot::channel();
+        let task = context
+            .spawn_cooperative(move |cancellation| async move {
+                let _ = started_sender.send(());
+                cancellation.cancelled().await;
+                panic!("dummy cleanup panic");
+                #[allow(unreachable_code)]
+                Ok(())
+            })
+            .unwrap();
+        started_receiver.await.unwrap();
+
+        timeout(Duration::from_secs(1), context.cancel())
+            .await
+            .expect("request cancellation did not finish after cleanup panic");
+
+        let error = task.await.unwrap_err();
         assert_eq!(error.code(), ErrorCode::TaskFailed);
         assert_eq!(error.message(), "owned task panicked");
         assert_eq!(context.task_count(), 0);
