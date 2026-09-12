@@ -11,6 +11,8 @@ Read `README.md` before making architectural changes.
 - Validate feature, change, and fix branches, then squash-merge them into `main` with a matching `feat:`, `change:`, or `fix:` commit subject.
 - Nonfunctional cleanup and organization may be committed directly to `main` with a `chore:` subject.
 - Do not mix functional changes into a chore. When classification is uncertain, use a `change/<slug>` branch.
+- Agents may push validated commits and completed merges to `origin` without separate approval when this workflow is followed.
+- Never force-push or otherwise rewrite remote `main`. Correct mistakes with explicit follow-up or revert commits.
 - Delete a topic branch after it is merged.
 
 - Keep the Rust core independent of every client language and runtime.
