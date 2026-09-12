@@ -13,6 +13,10 @@ pub enum ErrorCode {
     Cancelled,
     /// The requested capability was not granted to this router.
     CapabilityDenied,
+    /// A native capability operation failed.
+    CapabilityFailed,
+    /// A resource limit prevented an operation from completing.
+    ResourceLimitExceeded,
     /// An owned task stopped without producing a capability result.
     TaskFailed,
 }
@@ -38,6 +42,20 @@ impl RuntimeError {
         Self {
             code: ErrorCode::CapabilityDenied,
             message: "capability not granted".to_owned(),
+        }
+    }
+
+    pub(crate) fn capability_failed(message: impl Into<String>) -> Self {
+        Self {
+            code: ErrorCode::CapabilityFailed,
+            message: message.into(),
+        }
+    }
+
+    pub(crate) fn resource_limit_exceeded(message: impl Into<String>) -> Self {
+        Self {
+            code: ErrorCode::ResourceLimitExceeded,
+            message: message.into(),
         }
     }
 
